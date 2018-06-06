@@ -36,12 +36,27 @@ def get_create_keys(fileinput):
             reading_keys = True
             continue
 
-        elif line.startswith('  PRIMARY KEY') or line.startswith('  KEY'):
+        elif line.startswith('  PRIMARY KEY') or line.startswith('  KEY') or line.startswith(') ENGINE') or line.startswith('  UNIQUE KEY'):
             reading_keys = False
             break
 
         if reading_keys:
-            new_key = line.partition("`")[2].partition("`")[0]
+            parts = line.strip().split(' ')
+            new_key = parts[0].strip('`')
+            if parts[1].startswith('int') or parts[1].startswith('bigint'):
+                new_key += ":INTEGER"
+            elif parts[1].startswith('timestamp'):
+                new_key += ":TIMESTAMP"
+            elif parts[1].startswith('datetime'):
+                new_key += ":DATETIME"
+            elif parts[1].startswith('date'):
+                new_key += ":DATE"
+            elif parts[1].startswith('decimal'):
+                new_key += ":FLOAT64"
+            elif parts[1].startswith('bit(1)'):
+                new_key += ":BOOL"
+            else:
+                new_key += ":STRING"
             keys.append(new_key)
     return table_name, keys
 
