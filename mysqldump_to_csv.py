@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import fileinput
+import itertools
 import csv
 import sys
 
@@ -25,12 +26,13 @@ def get_insert_values(line):
 
 def get_create_keys(fileinput):
     """
-    Returns all of the value keys within the CREATE statement.
+    Returns tuple of table_name and list of keys within the CREATE statement.
     """
     reading_keys = False
     keys = []
     for line in fileinput:
         if line.startswith('CREATE TABLE'):
+            table_name = line.partition("`")[2].partition("`")[0]
             reading_keys = True
             continue
 
@@ -41,7 +43,7 @@ def get_create_keys(fileinput):
         if reading_keys:
             new_key = line.partition("`")[2].partition("`")[0]
             keys.append(new_key)
-    return keys
+    return table_name, keys
 
 
 def values_sanity_check(values):
@@ -127,17 +129,25 @@ def main():
     # listed in sys.argv[1:]
     # or stdin if no args given.
     inp = fileinput.input()
-    keys = get_create_keys(inp)
-    write_keys(keys, sys.stdout)
-    try:
-        for line in inp:
-            # Look for an INSERT statement and parse it.
-            if is_insert(line):
-                values = get_insert_values(line)
-                if values_sanity_check(values):
-                    parse_values(values, sys.stdout)
-    except KeyboardInterrupt:
-        sys.exit(0)
+    output = None
+    for line in inp:
+        if line.startswith('CREATE TABLE'):
+            table_name, keys = get_create_keys(itertools.chain([line], inp))
+            if output is not None:
+                output.close()
+            output = open(table_name + '.csv', 'w')
+            write_keys(keys, output)
+
+        if is_insert(line):
+            values = get_insert_values(line)
+            if values_sanity_check(values):
+                parse_values(values, output)
+
+    if output is not None:
+        output.close()
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        sys.exit(0)
